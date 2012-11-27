@@ -19,6 +19,8 @@ package Process;
 use strict;
 use warnings;
 use POSIX;
+use File::Basename;
+use File::Glob ':glob';
 use SupplierConfig;
 use Fcntl qw(O_WRONLY O_CREAT O_EXCL);
 
@@ -40,18 +42,17 @@ my $write_pid = sub {
   close PID_FH;
 };
 
-my $clean_supplier_dirs = sub {
-  shift;
-  for my $dir (@_) {
-  }
-};
-
 =head1 $self->$go
 =cut
 my $go = sub {
   my $self = shift;
   my @config_files = glob($self->{config_dir}."/*.ini");
   
+  
+  # удаляем прошлые прайсы
+  unlink glob for(map({ dirname(__FILE__).'/'.(m/([^\/]+)\.ini$/)[0]."/*" } @config_files));
+  
+  # читаем конфиги
   while(my $config_file = shift @config_files) {
     my $config = SupplierConfig->new($config_file);
 	
