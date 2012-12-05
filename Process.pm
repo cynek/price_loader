@@ -1,4 +1,3 @@
-#
 #===============================================================================
 #
 #         FILE: Process.pm
@@ -22,6 +21,7 @@ use POSIX;
 use File::Basename;
 use File::Glob ':glob';
 use SupplierConfig;
+use Mail;
 use Fcntl qw(O_WRONLY O_CREAT O_EXCL);
 
 ############## PRIVATE METHODS ################
@@ -42,6 +42,11 @@ my $write_pid = sub {
   close PID_FH;
 };
 
+my $fetch_mail = sub {
+  my $self = shift;
+  my $mail
+};
+
 =head1 $self->$go
 =cut
 my $go = sub {
@@ -50,15 +55,20 @@ my $go = sub {
   
   
   # удаляем прошлые прайсы
+  #TODO: исключить size.ttt
   unlink glob for(map({ dirname(__FILE__).'/'.(m/([^\/]+)\.ini$/)[0]."/*" } @config_files));
   
+  # устанавливаем соединение с mail сервером
+  my $mail = Mail->new();
+
   # читаем конфиги
   while(my $config_file = shift @config_files) {
     my $config = SupplierConfig->new($config_file);
-	
-    while(my ($k,$v) = each %{$config}) {
-      print "$k = $v\n";
-    }
+	if($config->{usemail}) {
+	  $self->$fetch_mail;
+	} else {
+	  $self->$fetch_http($config->{useauth});
+	}
   }
 };
 
