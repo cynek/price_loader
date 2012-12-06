@@ -21,6 +21,7 @@ Have setting propeties from config_file (<supplier>-<region>.ini)
 use 5.010;
 use strict;
 use warnings;
+use File::Basename;
 
 our $VERSION = '0.01';
 our $default_fields = {
@@ -86,8 +87,9 @@ Returns a new B<Config> or dies on error.
 =cut
 
 sub new {
-  my $class = shift;
-  my %fields = (%{$default_fields}, 'file' => shift);
+  my ($class, $file) = shift;
+  die "$0: file arg must be set" unless $file;
+  my %fields = (%{$default_fields}, 'file' => $file, 'supplier_dir' => dirname(__FILE__).'/'.($file =~ m/([^\/]+)\.ini$/)[0]);
   my $self = bless { %fields }, $class;
   $self->parse; 
 }

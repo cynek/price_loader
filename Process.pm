@@ -42,32 +42,29 @@ my $write_pid = sub {
   close PID_FH;
 };
 
-my $fetch_mail = sub {
-  my $self = shift;
-  my $mail
-};
-
 =head1 $self->$go
 =cut
 my $go = sub {
   my $self = shift;
   my @config_files = glob($self->{config_dir}."/*.ini");
-  
+  print for @config_files;
+  my @suppliers_configs = map { SupplierConfig->new($_) } @config_files;
   
   # удаляем прошлые прайсы
   #TODO: исключить size.ttt
-  unlink glob for(map({ dirname(__FILE__).'/'.(m/([^\/]+)\.ini$/)[0]."/*" } @config_files));
+  unlink glob for(map { $_->{supplier_dir}.'/*' } @suppliers_configs);
   
   # устанавливаем соединение с mail сервером
-  my $mail = Mail->new();
+  my $mail = Mail->new($self->{app_config}->{mailuser},
+					   $self->{app_config}->{mailpassword},
+					   $self->{app_config}->{mailhost});
 
   # читаем конфиги
-  while(my $config_file = shift @config_files) {
-    my $config = SupplierConfig->new($config_file);
+  for my $config (@suppliers_configs) {
 	if($config->{usemail}) {
-	  $self->$fetch_mail;
+	  $mail->fetch($config->{mailfrom}, $config->{file});
 	} else {
-	  $self->$fetch_http($config->{useauth});
+      #$self->$fetch_http($config->{useauth});
 	}
   }
 };
@@ -76,11 +73,12 @@ my $go = sub {
 
 =head1 run
   Конструктор
-  my Process->run("./process.pid", "config_dir")  
+  my Process->run($app_config, "./process.pid", "config_dir")  
 =cut
 sub run {
   my $class = shift;
   my $self = {
+	app_config => shift,
 	pidfile => shift || die("Need pid file name"),
 	config_dir => shift || die('Need config dir name')
   };

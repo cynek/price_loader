@@ -23,12 +23,20 @@ use warnings;
 use File::Basename;
 use Thread;
 use Process;
-my $current_dir = dirname(__FILE__);
+use Config::General;
 
-my $p = Thread->new(sub {
-  Process->run($current_dir."/price_loader.pid", $current_dir.'/iniz');
-});
+my $current_dir = dirname(__FILE__);
+my $general_config_file = $current_dir . '/config.ini';
+my %app_config;
 eval {
-  $p->join;
+  %app_config = Config::General->new($general_config_file)->getall;
 };
+die "$0: err in general config $general_config_file: $@" if $@;
+
+#my $p = Thread->new(sub {
+  Process->run(\%app_config, "$current_dir/price_loader.pid", "$current_dir/iniz");
+#});
+#eval {
+#  $p->join;
+#};
 print "END\n";

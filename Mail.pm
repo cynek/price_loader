@@ -25,7 +25,7 @@ use IO::Socket::SSL;
 use Mail::IMAPClient;
 use File::Basename;
 
-use fields qw{connection debug}
+use fields qw{connection debug};
 my $email_regexp = qr/^\w+(?:\.\w+)*@\w+(?:\.\w+)*$/;
 sub new {
   my ($self, $user, $password, $host, $port, $debug) = @_;
@@ -34,7 +34,7 @@ sub new {
 	  $self->{connection} = Mail::IMAPClient->new(User => $user,
 												  Password => $password,
 												  Uid		 => 1,
-												  Peek	 => 1,
+												  Peek	     => 1,
 												  Socket	 => IO::Socket::SSL->new(
 												  			  Proto	=> 'tcp',
 												  			  PeerAddr => $host,
@@ -49,13 +49,13 @@ sub fetch {
   my ($self, $mailfrom, $dir) = @_;
   die "$0: invalid mailfrom: $mailfrom" unless $mailfrom =~ $email_regexp;
   for my $message_id ($self->{connection}->search(FROM => $mailfrom)) {
-	die "$0: badly imap message ID: $id" unless $id =~ /\A\d+\z/;
+	die "$0: badly imap message ID: $message_id" unless $message_id =~ /\A\d+\z/;
 
 	my $message = $self->{connection}->message_string($message_id)
 	  or die "$0: message_string: $@";
 
 	my $file_num = 1;
-	Email::MIME->new($str)->walk_parts(sub {
+	Email::MIME->new($message)->walk_parts(sub {
 		my ($part) = @_;
 		return unless $part->content_type =~ /\bname="([^"]+)"/;
 
