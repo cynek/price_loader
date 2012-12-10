@@ -87,7 +87,7 @@ Returns a new B<Config> or dies on error.
 =cut
 
 sub new {
-  my ($class, $file) = shift;
+  my ($class, $file) = @_;
   die "$0: file arg must be set" unless $file;
   my %fields = (%{$default_fields}, 'file' => $file, 'supplier_dir' => dirname(__FILE__).'/'.($file =~ m/([^\/]+)\.ini$/)[0]);
   my $self = bless { %fields }, $class;

@@ -47,22 +47,23 @@ my $write_pid = sub {
 my $go = sub {
   my $self = shift;
   my @config_files = glob($self->{config_dir}."/*.ini");
-  print for @config_files;
+  #print for @config_files;
   my @suppliers_configs = map { SupplierConfig->new($_) } @config_files;
   
   # удаляем прошлые прайсы
   #TODO: исключить size.ttt
   unlink glob for(map { $_->{supplier_dir}.'/*' } @suppliers_configs);
   
-  # устанавливаем соединение с mail сервером
-  my $mail = Mail->new($self->{app_config}->{mailuser},
+  # постоянное подключение почтового сервера для всех конфигов
+  my $mail_loader = Mail->new($self->{app_config}->{mailuser},
 					   $self->{app_config}->{mailpassword},
 					   $self->{app_config}->{mailhost});
 
   # читаем конфиги
   for my $config (@suppliers_configs) {
+	mkdir $config->{supplier_dir} unless -d $config->{supplier_dir};
 	if($config->{usemail}) {
-	  $mail->fetch($config->{mailfrom}, $config->{file});
+	  $mail_loader->fetch($config->{mailfrom}, $config->{supplier_dir});
 	} else {
       #$self->$fetch_http($config->{useauth});
 	}

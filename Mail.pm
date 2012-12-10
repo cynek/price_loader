@@ -28,7 +28,7 @@ use File::Basename;
 use fields qw{connection debug};
 my $email_regexp = qr/^\w+(?:\.\w+)*@\w+(?:\.\w+)*$/;
 sub new {
-  my ($self, $user, $password, $host, $port, $debug) = @_;
+  my ($self, $user, $password, $host, $port, $folder, $debug) = @_;
   unless(ref $self) {
 	  $self = fields::new($self);
 	  $self->{connection} = Mail::IMAPClient->new(User => $user,
@@ -39,6 +39,7 @@ sub new {
 												  			  Proto	=> 'tcp',
 												  			  PeerAddr => $host,
 												  			  PeerPort => $port || 993));
+	  $self->{connection}->select($folder || 'INBOX');
 	  die "$0: connect: $@" if defined $@;
   }
   $self->{debug} = $debug || 0;
@@ -59,7 +60,7 @@ sub fetch {
 		my ($part) = @_;
 		return unless $part->content_type =~ /\bname="([^"]+)"/;
 
-		my $filepath = dirname(__FILE__) . "/$dir/" . $file_num++ . "-$1";
+		my $filepath = $dir . '/' . $file_num++ . "-$1";
 		print "$0: writing file: $filepath" if $self->{debug};
 
 		open my $fh, '>', $filepath
