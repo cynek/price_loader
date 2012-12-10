@@ -49,6 +49,7 @@ sub new {
 sub fetch {
   my ($self, $mailfrom, $dir) = @_;
   die "$0: invalid mailfrom: $mailfrom" unless $mailfrom =~ $email_regexp;
+  my @filenames;
   for my $message_id ($self->{connection}->search(FROM => $mailfrom)) {
 	die "$0: badly imap message ID: $message_id" unless $message_id =~ /\A\d+\z/;
 
@@ -60,7 +61,9 @@ sub fetch {
 		my ($part) = @_;
 		return unless $part->content_type =~ /\bname="([^"]+)"/;
 
-		my $filepath = $dir . '/' . $file_num++ . "-$1";
+		my $filename = $file_num++ . "-$1";
+		push @filenames, $filename;
+		my $filepath = $dir . '/' . $filename;
 		print "$0: writing file: $filepath" if $self->{debug};
 
 		open my $fh, '>', $filepath
@@ -73,6 +76,7 @@ sub fetch {
 		close $fh or die "$0: close $filepath: $!";
 	  })
   }
+  @filenames;
 }
 
 sub DESTROY {

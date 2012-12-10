@@ -23,6 +23,7 @@ use File::Glob ':glob';
 use SupplierConfig;
 use Mail;
 use Fcntl qw(O_WRONLY O_CREAT O_EXCL);
+use File::Temp qw(tempdir);
 
 ############## PRIVATE METHODS ################
 
@@ -61,12 +62,13 @@ my $go = sub {
 
   # читаем конфиги
   for my $config (@suppliers_configs) {
+	my $tmpdir = tempdir(CLEANUP => 1);
+	my @files;
+	@files = $config->{usemail} ?
+	  $mail_loader->fetch($config->{mailfrom}, $tmpdir) :
+      (); #$self->$fetch_http($config->{useauth});
 	mkdir $config->{supplier_dir} unless -d $config->{supplier_dir};
-	if($config->{usemail}) {
-	  $mail_loader->fetch($config->{mailfrom}, $config->{supplier_dir});
-	} else {
-      #$self->$fetch_http($config->{useauth});
-	}
+	rename $tmpdir.'/'.$_, $config->{supplier_dir}.'/'.$_ for @files;
   }
 };
 
