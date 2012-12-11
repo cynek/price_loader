@@ -48,12 +48,10 @@ my $write_pid = sub {
 my $go = sub {
   my $self = shift;
   my @config_files = glob($self->{config_dir}."/*.ini");
-  #print for @config_files;
   my @suppliers_configs = map { SupplierConfig->new($_) } @config_files;
   
-  # удаляем прошлые прайсы
-  #TODO: исключить size.ttt
-  unlink glob for(map { $_->{supplier_dir}.'/*' } @suppliers_configs);
+  # удаляем прошлые прайсы кроме файла с хэшем size.ttt
+  unlink grep(!/\/size\.ttt$/, glob) for(map { $_->{supplier_dir}.'/*' } @suppliers_configs);
   
   # постоянное подключение почтового сервера для всех конфигов
   my $mail_loader = Mail->new($self->{app_config}->{mailuser},
