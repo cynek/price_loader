@@ -21,7 +21,8 @@ use POSIX;
 use File::Basename;
 use File::Glob ':glob';
 use SupplierConfig;
-use Mail;
+use MailLoader;
+use WebLoader;
 use Fcntl qw(O_WRONLY O_CREAT O_EXCL);
 use File::Temp qw(tempdir);
 
@@ -48,23 +49,27 @@ my $write_pid = sub {
 my $go = sub {
   my $self = shift;
   my @config_files = glob($self->{config_dir}."/*.ini");
+
+  # читаем конфиги
   my @suppliers_configs = map { SupplierConfig->new($_) } @config_files;
   
   # удаляем прошлые прайсы кроме файла с хэшем size.ttt
   unlink grep(!/\/size\.ttt$/, glob) for(map { $_->{supplier_dir}.'/*' } @suppliers_configs);
   
   # постоянное подключение почтового сервера для всех конфигов
-  my $mail_loader = Mail->new($self->{app_config}->{mailuser},
+  my $mail_loader = MailLoader->new($self->{app_config}->{mailuser},
 					   $self->{app_config}->{mailpassword},
 					   $self->{app_config}->{mailhost});
 
-  # читаем конфиги
   for my $config (@suppliers_configs) {
 	my $tmpdir = tempdir(CLEANUP => 1);
 	my @files;
+    my $web_loader = WebLoader->new($config->{loadpage}, $config->{filename});
+
 	@files = $config->{usemail} ?
 	  $mail_loader->fetch($config->{mailfrom}, $tmpdir) :
-      (); #$self->$fetch_http($config->{useauth});
+      $web_loader->fetch($tmpdir);
+
 	mkdir $config->{supplier_dir} unless -d $config->{supplier_dir};
 	rename $tmpdir.'/'.$_, $config->{supplier_dir}.'/'.$_ for @files;
   }
