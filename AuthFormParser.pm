@@ -1,17 +1,23 @@
 package AuthFormParser;
 
-use pQuery;
-sub parse {
-  my ($url, $form_selector, $login_id, $password_id) = @_;
+require Exporter;
+use Web::Query;
+our @ISA = ('Exporter');
+our @EXPORT = qw(parse);
+
+sub auth_params {
+  my ($url, $form_selector) = @_;
   my %params;
-  pQuery($url)->find($form_selector)->each(sub {
-    pQuery($_)->find('input')->each(sub {
-      my $input = $_->toHtml;
-      my ($name) = $input =~ /name=(\S+)[/>]/;
-      my ($value) = $input =~ /value=(\S+)[/>]/;
-      $params{$name} = $value;
+  my $query = Web::Query->new_from_url($url) or die "$0: can't open auth url $url: $!";
+  
+  $query->find($form_selector)->each(sub {
+	my (undef, $form) = @_;
+    $form->find('input')->each(sub {
+      my (undef, $input) = @_;
+      $params{$input->attr('name')} = $input->attr('value');
     });
   });
   %params;
 }
+
 1;

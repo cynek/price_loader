@@ -19,19 +19,32 @@ package WebLoader;
 use strict;
 use warnings;
  
+use Fcntl qw(O_WRONLY O_CREAT O_EXCL);
 use LWP::UserAgent;
 use HTML::LinkExtor;
 use URI::URL;
+use File::Basename;
 use Carp;
+use AuthFormParser;
+use Web::Query;
+use Encode qw(encode);
 use fields qw(loadpage filename_t authoptions useragent parser urls);
 
 sub new {
-  my ($self, $loadpage, $filename_t, $dir, %authoptions) = @_;
+  my ($self, $loadpage, $filename_t, $authoptions) = @_;
   $self = fields::new($self);
   $self->{loadpage} = $loadpage || die "loadpage should be set";
   $self->{filename_t} = $filename_t || die "filename template should be set";
-  $self->{authoptions} = \%authoptions if scalar(keys(%authoptions));
-  $self->{useragent} = LWP::UserAgent->new;
+  if($authoptions) {
+    $self->{authoptions} = {};
+	@{$self->{authoptions}}{'authpage','formauth','formlogin','formpassword', 'login', 'password'} =
+      @$authoptions{'authpage','formauth','formlogin','formpassword', 'login', 'password'};
+  }
+
+  $self->{useragent} = LWP::UserAgent->new(agent => "price_loader",
+                                           cookie_jar => {file => dirname(__FILE__)."/.cookies.txt"},
+                                           keep_alive => 1,
+                                           env_proxy => 1);
   $self->{parser} = HTML::LinkExtor->new(sub {
 	my($tag, %attr) = @_;
 	return if $tag ne 'a' 
@@ -45,6 +58,50 @@ sub new {
   	push(@{$self->{urls}}, [$attr{href}, $1]);
   });
   $self;
+}
+
+# Парсит форму авторизации. возвращает ее action, method и все input тэги
+sub auth_params {
+  my ($self, $url, $form_selector) = @_;
+  my %inputs;
+  my $query = Web::Query->new_from_url($url) or die "$0: can't open auth url $url: $!";
+  
+  my $form = $query->find($form_selector);
+  $form->each(sub {
+	my (undef, $form) = @_;
+    $form->find('input')->each(sub {
+      my (undef, $input) = @_;
+      my $name = $input->attr('name'); 
+      $inputs{$name} = $name eq $self->{authoptions}->{formlogin} ? $self->{authoptions}->{login} :
+                       $name eq $self->{authoptions}->{formpassword} ? $self->{authoptions}->{password} :
+                       $input->attr('value');
+    });
+  });
+  return ($form->attr('action') || $url,
+	      $form->attr('method') || 'POST',
+		  %inputs);
+}
+
+sub authorize {
+  my ($self) = @_;
+  my ($auth_url, $auth_method, %auth_params) = $self->auth_params($self->{authoptions}->{authpage}, $self->{authoptions}->{formauth});
+  my @auth_params;
+  while(my ($name, $value) = each(%auth_params)) {
+    push @auth_params, "$name=$value";
+  }
+  my $content = encode('cp1251', join('&', @auth_params));
+  my $res = $self->{useragent}->request(HTTP::Request->new($auth_method, $auth_url, undef, $content));
+
+  croak "can't authorize, because: ".$res->status_line if ($res->header("X-Died") || !$res->is_success)
+
+### DELETE ME
+#	print $self->{authoptions}->{'authpage'}, "\n";
+#	print 'action = ', $action, "\n";
+#	print 'method = ', $method, "\n";
+#	while(my ($k, $v) = each(%inputs)) {
+#      print $k, '=', $v, "\n";
+#	}
+###
 }
 
 sub urls {
@@ -61,15 +118,27 @@ sub urls {
 
 sub fetch {
   my ($self, $dir_to_save) = @_;
+  $self->authorize if $self->{authoptions};
+
   my @fetched_files = ();
+
+  $| = 1;  # autoflush
   for my $url ($self->urls) {
-	my $res = $self->{useragent}->request(HTTP::Request->new(GET => $url->[0]), "$dir_to_save/$url->[1]");
-    if($res->is_success) {
-	  push @fetched_files, $url->[1];
+    open PRICE, '>', "$dir_to_save/$url->[1]" or
+      die "Can't write $url->[1]: $!";
+
+	binmode PRICE;
+	my $res = $self->{useragent}->request(HTTP::Request->new(GET => $url->[0]), sub {
+          print PRICE shift;
+		});
+	close PRICE;
+    if ($res->header("X-Died") || !$res->is_success) {
+	  carp "can't download ".$url->[0].", because: ".$res->status_line;
 	} else {
-	  carp "can't download $url->[0], because: $res->status_line";
+	  push @fetched_files, $url->[1];
 	}
   }
+  $| = 0;
   @fetched_files;
 }
 

@@ -60,8 +60,15 @@ my $merge_fields_with = sub {
   my $self = shift;
   my $lines = shift;
   while(my $line = shift(@{$lines})) {
-	$line =~ s/\s//g;
-    my ($field, $value) = split('=', $line);
+    chomp $line;
+    next unless length $line;
+    my ($field, $value) = $line =~ m/^(.+?)=(.+)/;
+    next unless $field;
+    $field =~ s/\s//g;
+    if($value) {
+      $value =~ s/^\s+//g;
+      $value =~ s/\s+$//g;
+    }
     $self->{$field} = $value if(exists($self->{$field}));
   }
 };

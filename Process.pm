@@ -25,9 +25,11 @@ use MailLoader;
 use WebLoader;
 use Fcntl qw(O_WRONLY O_CREAT O_EXCL);
 use File::Temp qw(tempdir);
+use Digest::MD5 qw(md5_hex);
+
+use constant HASH_FILENAME => 'size.ttt';
 
 ############## PRIVATE METHODS ################
-
 my $die_now = sub {
   my $self = shift;
   $self->{nodestruct} = 1;
@@ -44,6 +46,33 @@ my $write_pid = sub {
   close PID_FH;
 };
 
+my $new_hash = sub {
+  my ($self, $config, $dir, @price_files) = @_;
+  my $filemode = -e (my $hash_filepath = $config->{supplier_dir}.'/'.HASH_FILENAME) ? '+<' : '+>';
+  open HASH_FILE, $filemode, $hash_filepath or die "$0: can't open hash file: $!\n";
+  my $old_hash = <HASH_FILE> || '';
+  chomp $old_hash;
+  my $new_hash = '';
+  {
+    undef(local $/);
+    for my $price_filename (@price_files) {
+      $price_filename = $dir . '/' . $price_filename;
+      open(my $price_fh, '<', $price_filename) or die "$0: can't open price file: $!\n";
+      $new_hash .= <$price_fh>;
+      close $price_fh;
+    }
+  }
+  $new_hash = md5_hex($new_hash); 
+  my $is_changed = !($new_hash eq $old_hash);
+  print $new_hash, " && ", $old_hash, "\n";
+  if($is_changed) {
+	truncate HASH_FILE, 0;
+	print HASH_FILE $new_hash;
+  }
+  close HASH_FILE;
+  $is_changed ? $new_hash : 0;
+};
+
 =head1 $self->$go
 =cut
 my $go = sub {
@@ -53,8 +82,9 @@ my $go = sub {
   # читаем конфиги
   my @suppliers_configs = map { SupplierConfig->new($_) } @config_files;
   
-  # удаляем прошлые прайсы кроме файла с хэшем size.ttt
-  unlink grep(!/\/size\.ttt$/, glob) for(map { $_->{supplier_dir}.'/*' } @suppliers_configs);
+  # удаляем прошлые прайсы кроме файла с хэшем HASH_FILENAME
+  (my $hash_filename_re_esc = HASH_FILENAME) =~ s/\./\./;
+  unlink grep(!/\/$hash_filename_re_esc/, glob) for(map { $_->{supplier_dir}.'/*' } @suppliers_configs);
   
   # постоянное подключение почтового сервера для всех конфигов
   my $mail_loader = MailLoader->new($self->{app_config}->{mailuser},
@@ -64,14 +94,16 @@ my $go = sub {
   for my $config (@suppliers_configs) {
 	my $tmpdir = tempdir(CLEANUP => 1);
 	my @files;
-    my $web_loader = WebLoader->new($config->{loadpage}, $config->{filename});
+    my $web_loader = WebLoader->new($config->{loadpage}, $config->{filename}, $config) unless $config->{usemail};
 
 	@files = $config->{usemail} ?
 	  $mail_loader->fetch($config->{mailfrom}, $tmpdir) :
       $web_loader->fetch($tmpdir);
 
 	mkdir $config->{supplier_dir} unless -d $config->{supplier_dir};
-	rename $tmpdir.'/'.$_, $config->{supplier_dir}.'/'.$_ for @files;
+	if($self->$new_hash($config, $tmpdir, @files)) {
+	  rename $tmpdir.'/'.$_, $config->{supplier_dir}.'/'.$_ for @files;
+	}
   }
 };
 
