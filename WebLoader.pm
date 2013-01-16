@@ -89,15 +89,6 @@ sub authorize {
   my $res = $self->{useragent}->post($auth_url, \%auth_params);
 
   croak "can't authorize, because: ".$res->status_line if ($res->header("X-Died") || !($res->is_success || $res->is_redirect))
-
-### DELETE ME
-#	print $self->{authoptions}->{'authpage'}, "\n";
-#	print 'action = ', $action, "\n";
-#	print 'method = ', $method, "\n";
-#	while(my ($k, $v) = each(%inputs)) {
-#      print $k, '=', $v, "\n";
-#	}
-###
 }
 
 sub urls {
@@ -107,9 +98,9 @@ sub urls {
   my $res = $self->{useragent}->request(HTTP::Request->new(GET => $self->{loadpage}),
 									 sub { $self->{parser}->parse($_[0]) });
   
-  # Expand all image URLs to absolute ones
+  # Expand all links URLs to absolute ones
   my $base = $res->base;
-  @{$self->{urls}} = map { $_->[0] = url($_[0], $base)->abs; $_ } @{$self->{urls}};
+  @{$self->{urls}} = map { $_->[0] = url($_->[0], $base)->abs; $_ } @{$self->{urls}};
 };
 
 sub fetch {
