@@ -42,7 +42,8 @@ sub new {
   }
 
   $self->{useragent} = LWP::UserAgent->new(agent => "price_loader",
-                                           cookie_jar => {file => dirname(__FILE__)."/.cookies.txt"},
+                                           cookie_jar => {file => dirname(__FILE__)."/.cookies.txt",
+										                  autosave => 1},
                                            keep_alive => 1,
                                            env_proxy => 1);
   $self->{parser} = HTML::LinkExtor->new(sub {
@@ -71,28 +72,23 @@ sub auth_params {
 	my (undef, $form) = @_;
     $form->find('input')->each(sub {
       my (undef, $input) = @_;
-      my $name = $input->attr('name'); 
+	  return unless $input->attr('name');
+      my $name = $input->attr('name');
       $inputs{$name} = $name eq $self->{authoptions}->{formlogin} ? $self->{authoptions}->{login} :
                        $name eq $self->{authoptions}->{formpassword} ? $self->{authoptions}->{password} :
                        $input->attr('value');
     });
   });
   return ($form->attr('action') || $url,
-	      $form->attr('method') || 'POST',
 		  %inputs);
 }
 
 sub authorize {
   my ($self) = @_;
-  my ($auth_url, $auth_method, %auth_params) = $self->auth_params($self->{authoptions}->{authpage}, $self->{authoptions}->{formauth});
-  my @auth_params;
-  while(my ($name, $value) = each(%auth_params)) {
-    push @auth_params, "$name=$value";
-  }
-  my $content = encode('cp1251', join('&', @auth_params));
-  my $res = $self->{useragent}->request(HTTP::Request->new($auth_method, $auth_url, undef, $content));
+  my ($auth_url, %auth_params) = $self->auth_params($self->{authoptions}->{authpage}, $self->{authoptions}->{formauth});
+  my $res = $self->{useragent}->post($auth_url, \%auth_params);
 
-  croak "can't authorize, because: ".$res->status_line if ($res->header("X-Died") || !$res->is_success)
+  croak "can't authorize, because: ".$res->status_line if ($res->header("X-Died") || !($res->is_success || $res->is_redirect))
 
 ### DELETE ME
 #	print $self->{authoptions}->{'authpage'}, "\n";
