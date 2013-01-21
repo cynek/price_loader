@@ -35,7 +35,7 @@ sub new {
   $self = fields::new($self);
   $self->{loadpage} = $loadpage || die "loadpage should be set";
   $self->{filename_t} = $filename_t || die "filename template should be set";
-  if($authoptions) {
+  if($authoptions->{useauth}) {
     $self->{authoptions} = {};
 	@{$self->{authoptions}}{'authpage','formauth','formlogin','formpassword', 'login', 'password'} =
       @$authoptions{'authpage','formauth','formlogin','formpassword', 'login', 'password'};
@@ -109,6 +109,7 @@ sub fetch {
 
   my @fetched_files = ();
 
+  carp "Not found links for download on $self->{loadpage}" unless scalar $self->urls;
   $| = 1;  # autoflush
   for my $url ($self->urls) {
     open PRICE, '>', "$dir_to_save/$url->[1]" or

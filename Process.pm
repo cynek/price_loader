@@ -30,23 +30,7 @@ use Digest::MD5 qw(md5_hex);
 use constant HASH_FILENAME => 'size.ttt';
 
 ############## PRIVATE METHODS ################
-my $die_now = sub {
-  my $self = shift;
-  $self->{nodestruct} = 1;
-  die shift."\n";
-};
-
-=head1 $self->$write_pid
-=cut
-my $write_pid = sub {
-  my $self = shift;
-  sysopen(PID_FH, $self->{pidfile}, O_WRONLY | O_CREAT | O_EXCL)
-    or $self->$die_now("pid file exists!");
-  print PID_FH $$;
-  close PID_FH;
-};
-
-my $new_hash = sub {
+my $hash_changed = sub {
   my ($self, $config, $dir, @price_files) = @_;
   my $filemode = -e (my $hash_filepath = $config->{supplier_dir}.'/'.HASH_FILENAME) ? '+<' : '+>';
   open HASH_FILE, $filemode, $hash_filepath or die "$0: can't open hash file: $!\n";
@@ -64,13 +48,12 @@ my $new_hash = sub {
   }
   $new_hash = md5_hex($new_hash); 
   my $is_changed = !($new_hash eq $old_hash);
-  print $new_hash, " && ", $old_hash, "\n";
   if($is_changed) {
 	truncate HASH_FILE, 0;
 	print HASH_FILE $new_hash;
   }
   close HASH_FILE;
-  $is_changed ? $new_hash : 0;
+  $is_changed
 };
 
 =head1 $self->$go
@@ -101,7 +84,7 @@ my $go = sub {
       $web_loader->fetch($tmpdir);
 
 	mkdir $config->{supplier_dir} unless -d $config->{supplier_dir};
-	if($self->$new_hash($config, $tmpdir, @files)) {
+	if($self->$hash_changed($config, $tmpdir, @files)) {
 	  rename $tmpdir.'/'.$_, $config->{supplier_dir}.'/'.$_ for @files;
 	}
   }
@@ -117,18 +100,11 @@ sub run {
   my $class = shift;
   my $self = {
 	app_config => shift,
-	pidfile => shift || die("Need pid file name"),
 	config_dir => shift || die('Need config dir name')
   };
   bless $self, $class;
-  $self->$write_pid();
   $self->$go();
   $self;
 }	
-
-sub DESTROY {
-  my $self = shift;
-  unlink $self->{pidfile} unless $self->{nodestruct};
-}
 
 1;
