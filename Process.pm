@@ -26,6 +26,7 @@ use WebLoader;
 use Fcntl qw(O_WRONLY O_CREAT O_EXCL);
 use File::Temp qw(tempdir);
 use Digest::MD5 qw(md5_hex);
+use Archive::Extract;
 
 use constant HASH_FILENAME => 'size.ttt';
 
@@ -33,7 +34,7 @@ use constant HASH_FILENAME => 'size.ttt';
 my $hash_changed = sub {
   my ($self, $config, $dir, @price_files) = @_;
   my $filemode = -e (my $hash_filepath = $config->{supplier_dir}.'/'.HASH_FILENAME) ? '+<' : '+>';
-  open HASH_FILE, $filemode, $hash_filepath or die "$0: can't open hash file: $!\n";
+  open HASH_FILE, $filemode, $hash_filepath or die "$0: can't open hash file $hash_filepath: $!\n";
   my $old_hash = <HASH_FILE> || '';
   chomp $old_hash;
   my $new_hash = '';
@@ -41,7 +42,7 @@ my $hash_changed = sub {
     undef(local $/);
     for my $price_filename (@price_files) {
       $price_filename = $dir . '/' . $price_filename;
-      open(my $price_fh, '<', $price_filename) or die "$0: can't open price file: $!\n";
+      open(my $price_fh, '<', $price_filename) or die "$0: can't open price file $price_filename: $!\n";
       $new_hash .= <$price_fh>;
       close $price_fh;
     }
@@ -49,7 +50,8 @@ my $hash_changed = sub {
   $new_hash = md5_hex($new_hash); 
   my $is_changed = !($new_hash eq $old_hash);
   if($is_changed) {
-	truncate HASH_FILE, 0;
+	close HASH_FILE;
+	open HASH_FILE, ">", $hash_filepath;
 	print HASH_FILE $new_hash;
   }
   close HASH_FILE;
@@ -83,9 +85,30 @@ my $go = sub {
 	  $mail_loader->fetch($config->{mailfrom}, $tmpdir) :
       $web_loader->fetch($tmpdir);
 
+    # Разархивируем все архивы 
+	my %unarchived;
+	for my $file (@files) {
+      if(grep { $file =~ /\.$_$/ } Archive::Extract->types) {
+        my $archive = Archive::Extract->new(archive => "$tmpdir/$file");
+		$archive->extract(to => $tmpdir);
+	    $unarchived{$file} = $archive->files;
+      }
+	}
+	# и заменим их в @files на распакованные
+	@files = map { my $u = $unarchived{$_}; $u ? @{$u} : $_ } @files;
+
+	# если указан filenameinner выбираем по этому шаблону
+	if(my $filenameinner_re = $config->{filenameinner}) {
+      for($filenameinner_re) {
+        s/\*/.*?/;
+   	    s/\$/.{1}/;
+      }
+      @files = grep /$filenameinner_re$/, @files;
+    }
+
 	mkdir $config->{supplier_dir} unless -d $config->{supplier_dir};
 	if($self->$hash_changed($config, $tmpdir, @files)) {
-	  rename $tmpdir.'/'.$_, $config->{supplier_dir}.'/'.$_ for @files;
+	  rename "$tmpdir/$_", "$config->{supplier_dir}/$_" for @files;
 	}
   }
 };

@@ -30,18 +30,10 @@ my $current_dir = dirname(__FILE__);
 my $pidfile = "$current_dir/price_loader.pid";
 my $general_config_file = $current_dir . '/config.ini';
 
-sub write_pid {
-  sysopen(PID_FH, $pidfile, O_WRONLY | O_CREAT | O_EXCL)
-    or die("pid file exists!");
-  print PID_FH $$;
-  close PID_FH;
-}
-
-sub delete_pid {
-  unlink $pidfile;
-}
-
-write_pid;
+our $pid_created = sysopen(PID_FH, $pidfile, O_WRONLY | O_CREAT | O_EXCL);
+die "pid file exists!" unless $pid_created;
+print PID_FH $$;
+close PID_FH;
 
 my %app_config;
 eval {
@@ -60,5 +52,5 @@ die "$0: err in general config $general_config_file: $@" if $@;
 print "END\n";
 
 END {
-  delete_pid;
+  unlink $pidfile if our $pid_created;
 }
