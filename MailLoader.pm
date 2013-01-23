@@ -47,7 +47,7 @@ sub new {
 }
 
 sub fetch {
-  my ($self, $mailfrom, $dir) = @_;
+  my ($self, $mailfrom, $filename, $dir) = @_;
   die "$0: invalid mailfrom: $mailfrom" unless $mailfrom =~ $email_regexp;
   my @filenames;
   for my $message_id ($self->{connection}->search(FROM => $mailfrom)) {
@@ -76,7 +76,7 @@ sub fetch {
 		close $fh or die "$0: close $filepath: $!";
 	  })
   }
-  @filenames;
+  \@filenames;
 }
 
 sub DESTROY {

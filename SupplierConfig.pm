@@ -96,7 +96,11 @@ Returns a new B<Config> or dies on error.
 sub new {
   my ($class, $file) = @_;
   die "$0: file arg must be set" unless $file;
-  my %fields = (%{$default_fields}, 'file' => $file, 'supplier_dir' => dirname(__FILE__).'/'.($file =~ m/([^\/]+)\.ini$/)[0]);
+  my $supplier = ($file =~ m/([^\/]+)\.ini$/)[0];
+  my %fields = (%{$default_fields},
+	            'file' => $file,
+				'supplier' => $supplier,
+			   	'supplier_dir' => dirname(__FILE__).'/'.$supplier);
   my $self = bless { %fields }, $class;
   $self->parse; 
 }

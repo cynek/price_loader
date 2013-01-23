@@ -109,7 +109,7 @@ sub fetch {
 
   my @fetched_files = ();
 
-  carp "Not found links for download on $self->{loadpage}" unless scalar $self->urls;
+  return unless scalar $self->urls;
   $| = 1;  # autoflush
   for my $url ($self->urls) {
     open PRICE, '>', "$dir_to_save/$url->[1]" or
@@ -127,7 +127,7 @@ sub fetch {
 	}
   }
   $| = 0;
-  @fetched_files;
+  \@fetched_files;
 }
 
 1;

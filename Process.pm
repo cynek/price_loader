@@ -20,13 +20,15 @@ use warnings;
 use POSIX;
 use File::Basename;
 use File::Glob ':glob';
-use SupplierConfig;
-use MailLoader;
-use WebLoader;
 use Fcntl qw(O_WRONLY O_CREAT O_EXCL);
 use File::Temp qw(tempdir);
 use Digest::MD5 qw(md5_hex);
 use Archive::Extract;
+
+use SupplierConfig;
+use MailLoader;
+use WebLoader;
+use Reporter;
 
 use constant HASH_FILENAME => 'size.ttt';
 
@@ -73,43 +75,49 @@ my $go = sub {
   
   # постоянное подключение почтового сервера для всех конфигов
   my $mail_loader = MailLoader->new($self->{app_config}->{mailuser},
-					   $self->{app_config}->{mailpassword},
-					   $self->{app_config}->{mailhost});
+                                    $self->{app_config}->{mailpassword},
+                                    $self->{app_config}->{mailhost});
 
   for my $config (@suppliers_configs) {
-	my $tmpdir = tempdir(CLEANUP => 1);
-	my @files;
-    my $web_loader = WebLoader->new($config->{loadpage}, $config->{filename}, $config) unless $config->{usemail};
+	eval {
+	  my $tmpdir = tempdir(CLEANUP => 1);
+      my $web_loader = WebLoader->new($config->{loadpage}, $config->{filename}, $config) unless $config->{usemail};
 
-	@files = $config->{usemail} ?
-	  $mail_loader->fetch($config->{mailfrom}, $tmpdir) :
-      $web_loader->fetch($tmpdir);
+	  my $fetched = $config->{usemail} ?
+	    $mail_loader->fetch($config->{mailfrom}, $config->{filename}, $tmpdir) || $self->{reporter}->add_status($config->{supplier}, 'not_found_from_email') :
+        $web_loader->fetch($tmpdir) || $self->{reporter}->add_status($config->{supplier}, 'not_found_from_web');
+	  next unless $fetched;
 
-    # Разархивируем все архивы 
-	my %unarchived;
-	for my $file (@files) {
-      if(grep { $file =~ /\.$_$/ } Archive::Extract->types) {
-        my $archive = Archive::Extract->new(archive => "$tmpdir/$file");
-		$archive->extract(to => $tmpdir);
-	    $unarchived{$file} = $archive->files;
+      # Разархивируем все архивы 
+	  my %unarchived;
+	  for my $file (@{$fetched}) {
+        if(grep { $file =~ /\.$_$/ } Archive::Extract->types) {
+          my $archive = Archive::Extract->new(archive => "$tmpdir/$file");
+	  	  $archive->extract(to => $tmpdir);
+	      $unarchived{$file} = $archive->files;
+        }
+	  }
+	  # и заменим их в $fetched на распакованные
+	  @{$fetched} = map { my $u = $unarchived{$_}; $u ? @{$u} : $_ } @{$fetched};
+
+	  # если указан filenameinner выбираем по этому шаблону
+	  if(my $filenameinner_re = $config->{filenameinner}) {
+        for($filenameinner_re) {
+          s/\*/.*?/;
+   	      s/\$/.{1}/;
+        }
+        @{$fetched} = grep /$filenameinner_re$/, @{$fetched};
       }
-	}
-	# и заменим их в @files на распакованные
-	@files = map { my $u = $unarchived{$_}; $u ? @{$u} : $_ } @files;
 
-	# если указан filenameinner выбираем по этому шаблону
-	if(my $filenameinner_re = $config->{filenameinner}) {
-      for($filenameinner_re) {
-        s/\*/.*?/;
-   	    s/\$/.{1}/;
-      }
-      @files = grep /$filenameinner_re$/, @files;
-    }
-
-	mkdir $config->{supplier_dir} unless -d $config->{supplier_dir};
-	if($self->$hash_changed($config, $tmpdir, @files)) {
-	  rename "$tmpdir/$_", "$config->{supplier_dir}/$_" for @files;
-	}
+	  mkdir $config->{supplier_dir} unless -d $config->{supplier_dir};
+	  if($self->$hash_changed($config, $tmpdir, @{$fetched})) {
+	    rename "$tmpdir/$_", "$config->{supplier_dir}/$_" for @{$fetched};
+        $self->{reporter}->add_status($config->{supplier}, 'success_loaded') if @{$fetched};
+	  } else {
+        $self->{reporter}->add_status($config->{supplier}, 'price_is_old');
+	  }
+    };
+    $self->{reporter}->add_status($config->{supplier}, 'error', $@) if $@;
   }
 };
 
@@ -123,10 +131,12 @@ sub run {
   my $class = shift;
   my $self = {
 	app_config => shift,
-	config_dir => shift || die('Need config dir name')
+	config_dir => shift || die('Need config dir name'),
+	reporter   => Reporter->new
   };
   bless $self, $class;
   $self->$go();
+  $self->{reporter}->report;
   $self;
 }	
 
