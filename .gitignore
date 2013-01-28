@@ -19,3 +19,5 @@ doc/
 .cookies.txt
 *.swp
 *.csv
+config.ini
+

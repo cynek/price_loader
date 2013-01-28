@@ -24,6 +24,7 @@ use Email::MIME;
 use IO::Socket::SSL;
 use Mail::IMAPClient;
 use File::Basename;
+use Utils;
 
 use fields qw{connection debug};
 my $email_regexp = qr/^\w+(?:\.\w+)*@\w+(?:\.\w+)*$/;
@@ -47,8 +48,10 @@ sub new {
 }
 
 sub fetch {
-  my ($self, $mailfrom, $filename, $dir) = @_;
+  my ($self, $mailfrom, $filename_pattern, $dir) = @_;
   die "$0: invalid mailfrom: $mailfrom" unless $mailfrom =~ $email_regexp;
+
+  my $filename_re = Utils->pattern_to_regexp($filename_pattern);
   my @filenames;
   for my $message_id ($self->{connection}->search(FROM => $mailfrom)) {
 	die "$0: badly imap message ID: $message_id" unless $message_id =~ /\A\d+\z/;
@@ -56,12 +59,11 @@ sub fetch {
 	my $message = $self->{connection}->message_string($message_id)
 	  or die "$0: message_string: $@";
 
-	my $file_num = 1;
 	Email::MIME->new($message)->walk_parts(sub {
 		my ($part) = @_;
-		return unless $part->content_type =~ /\bname="([^"]+)"/;
+		return unless $part->content_type =~ /\bname="($filename_re)"/;
 
-		my $filename = $file_num++ . "-$1";
+		my $filename = $1;
 		push @filenames, $filename;
 		my $filepath = $dir . '/' . $filename;
 		print "$0: writing file: $filepath" if $self->{debug};

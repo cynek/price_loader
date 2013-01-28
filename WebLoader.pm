@@ -19,6 +19,7 @@ package WebLoader;
 use strict;
 use warnings;
  
+use Utils;
 use Fcntl qw(O_WRONLY O_CREAT O_EXCL);
 use LWP::UserAgent;
 use HTML::LinkExtor;
@@ -51,10 +52,7 @@ sub new {
 	return if $tag ne 'a' 
            or !(my $filename_re = $self->{filename_t})
 	       or !(my $href_endpath = ($attr{href} =~ m{([^/]+)$})[0]);
-	for($filename_re) {
-	  s/\*/.*?/;
-      s/\$/.{1}/;
-    }
+	$filename_re = Utils->pattern_to_regexp($filename_re);
   	return if $href_endpath !~ /($filename_re)$/;
   	push(@{$self->{urls}}, [$attr{href}, $1]);
   });
@@ -96,7 +94,8 @@ sub urls {
   return @{$self->{urls}} if $self->{urls};
   # Request document and parse it as it arrives
   my $res = $self->{useragent}->request(HTTP::Request->new(GET => $self->{loadpage}),
-									 sub { $self->{parser}->parse($_[0]) });
+                                        sub { $self->{parser}->parse($_[0]) });
+  croak "can't open loadpage: $self->{loadpage}, because: ".($res->header("X-Died") || $res->status_line) if ($res->header("X-Died") || !($res->is_success || $res->is_redirect));
   
   # Expand all links URLs to absolute ones
   my $base = $res->base;

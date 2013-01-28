@@ -29,6 +29,7 @@ use SupplierConfig;
 use MailLoader;
 use WebLoader;
 use Reporter;
+use Utils;
 
 use constant HASH_FILENAME => 'size.ttt';
 
@@ -83,8 +84,8 @@ my $go = sub {
 	  my $tmpdir = tempdir(CLEANUP => 1);
       my $web_loader = WebLoader->new($config->{loadpage}, $config->{filename}, $config) unless $config->{usemail};
 
-	  my $fetched = $config->{usemail} ?
-	    $mail_loader->fetch($config->{mailfrom}, $config->{filename}, $tmpdir) || $self->{reporter}->add_status($config->{supplier}, 'not_found_from_email') :
+      my $fetched = $config->{usemail} ?
+	    $mail_loader->fetch($config->{mailfrom}, $config->{filename}, $tmpdir, $self->{mailport}, $self->{mailfolder}) || $self->{reporter}->add_status($config->{supplier}, 'not_found_from_email') :
         $web_loader->fetch($tmpdir) || $self->{reporter}->add_status($config->{supplier}, 'not_found_from_web');
 	  next unless $fetched;
 
@@ -102,10 +103,7 @@ my $go = sub {
 
 	  # если указан filenameinner выбираем по этому шаблону
 	  if(my $filenameinner_re = $config->{filenameinner}) {
-        for($filenameinner_re) {
-          s/\*/.*?/;
-   	      s/\$/.{1}/;
-        }
+        $filenameinner_re = Utils->pattern_to_regexp($filenameinner_re);
         @{$fetched} = grep /$filenameinner_re$/, @{$fetched};
       }
 

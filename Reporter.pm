@@ -40,6 +40,7 @@ sub add_status {
   $status = STATUSES->{$status};
   $status .= ": $msg" if $msg;
   push $self->{statuses}, [$supplier, $status];
+  0
 }
 
 sub report {
