@@ -13,11 +13,11 @@ price_loader
 параметры конфигурации поставщиков (./iniz/*.ini)
 =================================================
 
-#EMail
+# Email
   * usemail - 0/1 использовать ли почту
   * mailfrom - email поставщика
 
-#Web
+# Web
   * useauth - 0/1 использовать ли авторизацию (Web)
   * authpage - страница авторизации
   * loadpage - страница поиска ссылки на прайс
@@ -28,3 +28,6 @@ price_loader
   * password - и пароль
   * filename - шаблон поиска ссылки (* - любые символы, $ - любой сивол)
   * filenameinner = шаблон поиска файла внутри архива (* - любые символы, $ - любой сивол)
+
+# Для предотвращения проблем с http://autokontinent.ru/price:
+``> sudo patch /usr/share/perl5/Net/HTTP/Methods.pm  ./Methods.pm.patch``

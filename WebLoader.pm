@@ -26,7 +26,6 @@ use HTML::LinkExtor;
 use URI::URL;
 use File::Basename;
 use Carp;
-use AuthFormParser;
 use Web::Query;
 use Encode qw(encode);
 use fields qw(loadpage filename_t authoptions useragent parser urls);

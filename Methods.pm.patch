@@ -1,0 +1,13 @@
+--- a//usr/share/perl5/Net/HTTP/Methods.pm
++++ b//usr/share/perl5/Net/HTTP/Methods.pm
+@@ -439,6 +439,10 @@
+		elsif ($_ eq "identity") {
+		    $_ = sub { $_[0] };
+		}
++		elsif ($_ eq "chunked") {
++		    pop(@te);
++		    #Workaround for multiple chunked entries
++		}
+		else {
+		    die "Can't handle transfer encoding '$te'";
+		}
