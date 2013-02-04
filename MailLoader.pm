@@ -40,8 +40,9 @@ sub new {
 												  			  Proto	=> 'tcp',
 												  			  PeerAddr => $host,
 												  			  PeerPort => $port || 993));
+	  die "$0: connect: $@" if $@;
 	  $self->{connection}->select($folder || 'INBOX');
-	  die "$0: connect: $@" if defined $@;
+	  die "$0: select folder: $@" if $@;
   }
   $self->{debug} = $debug || 0;
   $self;
@@ -53,7 +54,7 @@ sub fetch {
 
   my $filename_re = Utils->pattern_to_regexp($filename_pattern);
   my @filenames;
-  for my $message_id ($self->{connection}->search(FROM => $mailfrom)) {
+  for my $message_id ($self->{connection}->search(FROM => $mailfrom, 'UNSEEN')) {
 	die "$0: badly imap message ID: $message_id" unless $message_id =~ /\A\d+\z/;
 
 	my $message = $self->{connection}->message_string($message_id)

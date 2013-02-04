@@ -39,7 +39,7 @@ sub add_status {
   my ($self, $supplier, $status, $msg) = @_;
   $status = STATUSES->{$status};
   $status .= ": $msg" if $msg;
-  push $self->{statuses}, [$supplier, $status];
+  push @{$self->{statuses}}, [$supplier, $status];
   0
 }
 
